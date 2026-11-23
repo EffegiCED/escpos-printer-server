@@ -40,25 +40,33 @@ jobs:
       # --- Download and include NSSM ---
       - name: Download and extract NSSM
         run: |
-          curl -L -o /tmp/nssm.zip "$NSSM_URL"
+          curl -fL --retry 5 --retry-all-errors -o /tmp/nssm.zip "$NSSM_URL"
+          # Fork EffegiCED: l'impronta di nssm-2.24.zip, perché il pacchetto si installa come servizio con i permessi di amministratore
+          echo "727d1e42275c605e0f04aba98095c38a8e1e46def453cdffce42869428aa6743  /tmp/nssm.zip" | sha256sum -c -
           unzip -q /tmp/nssm.zip -d /tmp/nssm_unpack
           find /tmp/nssm_unpack -type f -iname "nssm.exe" -exec cp {} "$RELEASE_DIR/" \;
 
       # --- Find latest PHP 8.4 Windows build ---
+      # Fork EffegiCED: dall'elenco ufficiale in JSON, con l'impronta sha256. La pagina HTML ora risponde con un rimando e il
+      # ripiego su una versione fissa scaricava una pagina d'errore al posto dello zip (rilascio 2.0.4-kassa.1, 23/11/2026).
       - name: Find latest PHP 8.4 Windows build
         id: php
         run: |
-          LISTING="$(curl -s https://windows.php.net/downloads/releases/)"
-          PHP_ZIP=$(echo "$LISTING" | egrep -o 'php-8\.4\.[0-9]+-Win32-vs1[67]-x64\.zip' | sort -V | tail -n1)
-          if [ -z "$PHP_ZIP" ]; then
-              PHP_ZIP="php-8.4.13-Win32-vs17-x64.zip"
+          curl -fsSL --retry 3 -A "escpos-printer-server-build" https://windows.php.net/downloads/releases/releases.json -o /tmp/php-releases.json
+          PHP_ZIP=$(jq -r '."8.4"."ts-vs17-x64".zip.path' /tmp/php-releases.json)
+          PHP_SHA=$(jq -r '."8.4"."ts-vs17-x64".zip.sha256' /tmp/php-releases.json)
+          if [ -z "$PHP_ZIP" ] || [ "$PHP_ZIP" = "null" ]; then
+              echo "PHP 8.4 per Windows non trovato in releases.json" >&2
+              exit 1
           fi
           echo "php_zip=$PHP_ZIP" >> $GITHUB_OUTPUT
+          echo "php_sha=$PHP_SHA" >> $GITHUB_OUTPUT
 
       # --- Download & unpack PHP for Windows ---
       - name: Download and unpack PHP (Windows build)
         run: |
-          curl -L -o /tmp/php.zip "https://windows.php.net/downloads/releases/${{ steps.php.outputs.php_zip }}"
+          curl -fL --retry 3 -A "escpos-printer-server-build" -o /tmp/php.zip "https://windows.php.net/downloads/releases/${{ steps.php.outputs.php_zip }}"
+          echo "${{ steps.php.outputs.php_sha }}  /tmp/php.zip" | sha256sum -c -
           unzip -q /tmp/php.zip -d /tmp/php_unpack
           mkdir -p "$RELEASE_DIR/php"
           cp -r /tmp/php_unpack/* "$RELEASE_DIR/php/"
