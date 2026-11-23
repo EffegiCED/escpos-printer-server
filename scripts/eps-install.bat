@@ -33,6 +33,13 @@ if not exist "%NSSM%" (
     exit /b 1
 )
 
+:: Fork EffegiCED: l'indirizzo di Kassa, l'unico sito da cui l'agente accetta stampe (config\agent.json)
+if exist "%BASEDIR%config\agent.json" goto services
+echo.
+set /p "KASSA_URL=Indirizzo di Kassa (per esempio https://kassa.exxstore.it): "
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$u = $null; if (-not [uri]::TryCreate($env:KASSA_URL, 'Absolute', [ref]$u)) { Write-Host 'Indirizzo non valido: scrivilo poi in config\agent.json'; exit 0 }; $origin = $u.GetLeftPart([UriPartial]::Authority); $json = @{ allowed_origins = [string[]]@($origin) } | ConvertTo-Json -Compress; [IO.File]::WriteAllText((Join-Path $env:BASEDIR 'config\agent.json'), $json); Write-Host ('Stampe accettate da ' + $origin)"
+
+:services
 echo Installing EPS as Windows services...
 "%NSSM%" install EPS-WS "%PHP%" "%EPS%" --role ws
 "%NSSM%" install EPS-HTTP "%PHP%" "%EPS%" --role http

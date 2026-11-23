@@ -31,14 +31,6 @@ jobs:
       - name: Install Composer dependencies
         run: composer install --no-dev --optimize-autoloader
 
-      # --- Build PHAR (optional) ---
-      # Ensure a PHAR is available for the standalone PHAR bundle. This installs dev deps
-      # and runs the project's build script if possible; failure is non-fatal.
-      - name: Build PHAR (if possible)
-        run: |
-          composer install --no-interaction
-          composer run create:phar || true
-
       # --- Prepare release directory ---
       - name: Prepare release directory
         run: |
@@ -86,15 +78,11 @@ jobs:
           cp -r src "$RELEASE_DIR/"
           cp composer.json "$RELEASE_DIR/composer.json"
           cp eps "$RELEASE_DIR/eps"
-          # Copy PHAR only if present (built above); avoid failing the job if missing
-          if [ -f bin/eps.phar ]; then
-            cp bin/eps.phar "$RELEASE_DIR/eps.phar"
-          else
-            echo "Warning: bin/eps.phar not found; PHAR bundle will be empty"
-          fi
           cp scripts/eps-install.bat "$RELEASE_DIR/eps-install.bat"
           cp scripts/eps-uninstall.bat "$RELEASE_DIR/eps-uninstall.bat"
           cp -r vendor "$RELEASE_DIR/vendor"
+          # Fork EffegiCED: niente agent.json di sviluppo nel pacchetto, lo scrive l'installazione
+          rm -f "$RELEASE_DIR/config/agent.json"
 
       # --- Generate ZIP filenames ---
       - name: Define ZIP filenames
@@ -114,19 +102,9 @@ jobs:
           zip -r9 "../${{ steps.names.outputs.zip_windows }}" .
           cd ..
 
-      # --- Compress standalone PHAR ---
-      - name: Create standalone PHAR ZIP
-        run: |
-          mkdir -p dist
-          cp bin/eps.phar dist/
-          cd dist
-          zip -r9 "../${{ steps.names.outputs.zip_phar }}" eps.phar
-          cd ..
-
       # --- Upload artifacts to GitHub Release ---
       - name: Upload ZIP files to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             ${{ steps.names.outputs.zip_windows }}
-            ${{ steps.names.outputs.zip_phar }}

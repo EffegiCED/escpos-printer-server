@@ -6,3 +6,5 @@ vendor-bin/
 *.bak
 bundle/
 build/
+# Fork EffegiCED: scritto dall'installazione, diverso per ogni computer
+config/agent.json

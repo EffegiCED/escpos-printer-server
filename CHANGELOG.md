@@ -1,3 +1,14 @@
+## [2.0.4-kassa.1] - 2026-11-23 (fork EffegiCED)
+
+### Added
+- Stampa grezza per Kassa: messaggi `raw` (byte ESC/POS in base64, verso `IP:porta` o una stampante di Windows) e `ping` (agente e stampante raggiungibili), con risposta JSON legata all'`id`.
+- `config/agent.json` (`allowed_origins`) e `KASSA_ALLOWED_ORIGINS`: l'agente accetta stampe solo dai siti autorizzati; `eps-install.bat` chiede l'indirizzo di Kassa.
+
+### Changed
+- L'agente ascolta solo su `127.0.0.1` (prima `0.0.0.0`, aperto a tutta la rete); `--host` resta per chi lo vuole diverso.
+- La pagina di configurazione accetta scritture solo da sé stessa e non scarica più `settings.html` da internet all'avvio.
+- Il pacchetto è solo per Windows: niente più PHAR precompilato.
+
 ## [2.0.4] - 2025-10-31
 
 - release: patch version 2.0.4 [Imam Ali Mustofa]

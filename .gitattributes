@@ -1,0 +1,2 @@
+# Fork EffegiCED: i .bat restano con fine riga Windows anche nel pacchetto costruito su Linux (goto e etichette di cmd)
+*.bat text eol=crlf

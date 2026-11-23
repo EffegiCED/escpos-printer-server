@@ -15,6 +15,30 @@
   <img alt="GitHub Release" src="https://img.shields.io/github/v/release/darkterminal/escpos-printer-server">
 </p>
 
+> ## Fork EffegiCED: agente di stampa per Kassa
+>
+> Questa copia aggiunge la **stampa grezza** per [Kassa](https://github.com/EffegiCED/kassa): Kassa prepara lo scontrino (o la
+> comanda, o l'etichetta) già in ESC/POS e l'agente lo passa così com'è alla stampante, senza il modello di scontrino del progetto
+> originale. Serve per le stampanti **di rete** (porta 9100) o **installate in Windows** che il browser non raggiunge da solo.
+>
+> **Installazione su Windows**
+> 1. Scarica `eps-windows-bundle-….zip` dalle [release di questo fork](https://github.com/EffegiCED/escpos-printer-server/releases) ed estrailo in una cartella stabile (per esempio `C:\KassaStampa`).
+> 2. Doppio clic su `eps-install.bat`: chiede l'**indirizzo di Kassa** (per esempio `https://kassa.exxstore.it`) e installa due servizi di Windows (`EPS-WS`, `EPS-HTTP`) che partono da soli all'accensione.
+> 3. In Kassa, *Stampa → Dispositivi*: collegamento **Agente locale**, indirizzo della stampante `IP:porta` (per esempio `192.168.1.87:9100`) oppure il nome della stampante condivisa in Windows.
+> 4. Nella postazione di stampa di Kassa, sullo stesso computer, la stampante risulta «Collegata».
+>
+> **Sicurezza**: l'agente ascolta solo su questo computer (`127.0.0.1:1945`) e accetta stampe solo dai siti in `config\agent.json`
+> (`allowed_origins`, si rilegge a ogni richiesta: dopo una modifica non serve riavviare). Il browser manda l'origine della pagina e un
+> altro sito non può fingerla. Nel registro (`logs\`) c'è solo il numero di byte stampati, mai il contenuto. La pagina di configurazione
+> (`http://127.0.0.1:1100`) non accetta scritture da altri siti e non scarica più nulla da internet all'avvio.
+>
+> **Messaggi** (WebSocket, JSON, risposta con lo stesso `id`):
+> - `{"from": "ping", "id": "…", "printer": "192.168.1.87:9100"}` → `{"id", "ok": true, "agent": "kassa-raw/1", "version", "printer_error": null | "…"}`
+> - `{"from": "raw", "id": "…", "printer": "192.168.1.87:9100", "data": "<base64 dei byte ESC/POS>"}` → `{"id", "ok": true}` oppure
+>   `{"id", "ok": false, "stage": "origin" | "connect" | "write", "error": "…"}` (`connect`: non è uscito niente; `write`: può essere uscita in parte).
+>
+> Il resto del progetto (modello `posclient`, prova, cassetto) funziona come nell'originale.
+
 ## Features
 - **Cross-platform**: Works on Linux, macOS, and Windows.
 - **Multi-interface printer support**:

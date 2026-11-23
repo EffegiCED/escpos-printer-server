@@ -5,7 +5,9 @@ use Darkterminal\EscposPrinterServer\Server;
 
 require_once __DIR__ . '/vendor/autoload.php';
 
-$host = '0.0.0.0';
+// Fork EffegiCED: solo da questo computer (--host 0.0.0.0 per aprirlo alla rete, sconsigliato)
+$host = '127.0.0.1';
+$role = 'all';
 $port = 1945;
 $logs = __DIR__ . DIRECTORY_SEPARATOR . 'logs';
 

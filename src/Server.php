@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace Darkterminal\EscposPrinterServer;
 
 use Darkterminal\EscposPrinterServer\Contracts\PrinterServer;
+use Darkterminal\EscposPrinterServer\Kassa\AgentConfig;
+use Darkterminal\EscposPrinterServer\Kassa\RawPrinter;
 use Darkterminal\EscposPrinterServer\Utils\LoggerTrait;
 use Workerman\Connection\TcpConnection;
 use Workerman\Protocols\Http\Request;
@@ -19,7 +21,7 @@ class Server implements PrinterServer
     protected string $settingsPage;
 
     public function __construct(
-        public ?string $host = '0.0.0.0',
+        public ?string $host = '127.0.0.1',
         public ?int $port = 1945
     )
     {
@@ -80,9 +82,9 @@ class Server implements PrinterServer
             file_put_contents($this->configFile, json_encode($defaultPrinterSetting, JSON_PRETTY_PRINT));
         }
 
+        // Fork EffegiCED: la pagina è nel pacchetto; niente pagine scaricate da internet all'avvio
         if (!file_exists($this->settingsPage)) {
-            $settingPageRawFile = "https://github.com/darkterminal/escpos-printer-server/raw/refs/heads/main/config/settings.html";
-            file_put_contents($this->settingsPage, file_get_contents($settingPageRawFile));
+            file_put_contents($this->settingsPage, '<h1>config/settings.html mancante: reinstalla il pacchetto.</h1>');
         }
     }
 
@@ -92,10 +94,63 @@ class Server implements PrinterServer
         $this->debug("Server started on {$connection->getRemoteIp()}:{$connection->getRemotePort()}");
     }
 
+    /** Fork EffegiCED: l'origine della pagina che si collega (il browser la manda e un altro sito non può fingerla). */
+    public function onWebSocketConnect(TcpConnection $connection, Request $request): void
+    {
+        $connection->context->kassaOrigin = (string) ($request->header('origin') ?? '');
+    }
+
+    /**
+     * Fork EffegiCED, messaggi di Kassa: `ping` (agente vivo, e la stampante risponde?) e `raw` (byte ESC/POS già pronti, in
+     * base64). Rispondono sempre in JSON con lo stesso `id`. Nel log mai il contenuto della stampa, che ha i dati dei clienti.
+     *
+     * @param array<string, mixed> $data
+     */
+    private function onKassaMessage(TcpConnection $connection, array $data): void
+    {
+        $id = (string) ($data['id'] ?? '');
+        $reply = fn (array $body) => $connection->send(json_encode(['id' => $id] + $body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        $origin = (string) ($connection->context->kassaOrigin ?? '');
+
+        if (!AgentConfig::allows($origin)) {
+            $this->warning("Kassa: richiesta rifiutata dall'origine «{$origin}»");
+            $reply(['ok' => false, 'stage' => 'origin', 'error' => "L'agente non accetta stampe da {$origin}: aggiungilo in config\\agent.json (allowed_origins) sul computer della stampante."]);
+
+            return;
+        }
+
+        $printer = (string) ($data['printer'] ?? '');
+        try {
+            if ($data['from'] === 'ping') {
+                $reply(['ok' => true, 'agent' => AgentConfig::PROTOCOL, 'version' => AgentConfig::VERSION, 'printer_error' => $printer === '' ? null : RawPrinter::probe($printer)]);
+
+                return;
+            }
+
+            $bytes = base64_decode((string) ($data['data'] ?? ''), true);
+            if ($bytes === false || $bytes === '') {
+                $reply(['ok' => false, 'stage' => 'connect', 'error' => 'Stampa vuota o non leggibile.']);
+
+                return;
+            }
+            $result = RawPrinter::send($printer, $bytes);
+            $this->info('Kassa: stampa di '.strlen($bytes)." byte su «{$printer}»: ".($result['ok'] ? 'uscita' : ($result['error'] ?? 'errore')));
+            $reply($result);
+        } catch (\Throwable $e) {
+            $this->error("Kassa: {$e->getMessage()}");
+            $reply(['ok' => false, 'stage' => 'connect', 'error' => $e->getMessage()]);
+        }
+    }
+
     public function onMessage(TcpConnection $connection, mixed $payload): void
     {
         try {
             $data = json_decode($payload, true, 512, JSON_THROW_ON_ERROR);
+            if (is_array($data) && in_array($data['from'] ?? null, ['raw', 'ping'], true)) {
+                $this->onKassaMessage($connection, $data);
+
+                return;
+            }
             $this->info("Received data: " . ($data ? json_encode($data) : "unknown"));
 
             if (!isset($data['from'], $data['printer_name'], $data['printer_settings'])) {
@@ -156,6 +211,7 @@ class Server implements PrinterServer
         $ws = new Worker("websocket://{$this->host}:{$this->port}");
         $ws->name = 'EscposPrinterServer';
         $ws->onConnect = fn($conn) => $this->onConnect($conn);
+        $ws->onWebSocketConnect = fn($conn, $request) => $this->onWebSocketConnect($conn, $request);
         $ws->onMessage = fn($conn, $data) => $this->onMessage($conn, $data);
         $ws->onClose = fn($conn) => $this->onClose($conn);
 
@@ -185,6 +241,11 @@ class Server implements PrinterServer
                     $data = file_exists($configFile) ? file_get_contents($configFile) : '{}';
                     $connection->send(new Response(200, ['Content-Type' => 'application/json'], $data));
                 } elseif ($req->method() === 'POST') {
+                    // Fork EffegiCED: solo dalla pagina dell'agente, mai da un altro sito aperto nel browser
+                    if (!self::localOrigin($req)) {
+                        $connection->send(new Response(403, [], 'Forbidden'));
+                        return;
+                    }
                     file_put_contents($configFile, $req->rawBody());
                     $connection->send(new Response(200, ['Content-Type' => 'application/json'], json_encode(['status' => 'saved'])));
                 } else {
@@ -216,6 +277,10 @@ class Server implements PrinterServer
         };
 
         // Emitted when data received
+        $ws_worker->onWebSocketConnect = function ($connection, $request): void {
+            $this->onWebSocketConnect($connection, $request);
+        };
+
         $ws_worker->onMessage = function ($connection, $data): void {
             $this->onMessage($connection, $data);
         };
@@ -257,6 +322,11 @@ class Server implements PrinterServer
                 }
 
                 if ($method === 'POST') {
+                    // Fork EffegiCED: solo dalla pagina dell'agente, mai da un altro sito aperto nel browser
+                    if (!self::localOrigin($request)) {
+                        $connection->send(new Response(403, [], 'Forbidden'));
+                        return;
+                    }
                     $body = $request->rawBody();
                     file_put_contents($configFile, $body);
                     $connection->send(new Response(200, ['Content-Type' => 'application/json'], json_encode(['status' => 'saved'])));
@@ -273,6 +343,14 @@ class Server implements PrinterServer
 
         // Run worker
         Worker::runAll();
+    }
+
+    /** La richiesta viene dalla pagina di configurazione dell'agente (o da un programma senza Origin), non da un altro sito. */
+    private static function localOrigin(Request $request): bool
+    {
+        $origin = strtolower((string) ($request->header('origin') ?? ''));
+
+        return $origin === '' || preg_match('#^https?://(127\.0\.0\.1|localhost)(:\d+)?$#', $origin) === 1;
     }
 
     private function createMessage(string $type = 'info', string $message): string
