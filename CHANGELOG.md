@@ -1,3 +1,9 @@
+## [2.0.4-kassa.2] - 2026-11-23 (fork EffegiCED)
+
+### Fixed
+- `eps-install.bat` controlla che PHP parta e, se manca il Visual C++ Redistributable di Microsoft (VCRUNTIME140.dll), lo scarica e lo installa: senza, il servizio `EPS-WS` partiva, si chiudeva subito e Windows lo metteva in pausa senza dire perché.
+- Gli errori dei servizi finiscono in `logs\service-ws.log` e `logs\service-http.log`.
+
 ## [2.0.4-kassa.1] - 2026-11-23 (fork EffegiCED)
 
 ### Added

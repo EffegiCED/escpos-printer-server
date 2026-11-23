@@ -33,6 +33,20 @@ if not exist "%NSSM%" (
     exit /b 1
 )
 
+:: Fork EffegiCED: PHP per Windows vuole il Visual C++ Redistributable di Microsoft (VCRUNTIME140.dll). Senza, il servizio parte,
+:: si chiude subito e Windows lo mette in pausa senza dire perche'.
+"%PHP%" -v >nul 2>&1
+if not errorlevel 1 goto phpok
+echo.
+echo Manca il Visual C++ Redistributable di Microsoft: lo scarico e lo installo...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$f = Join-Path $env:TEMP 'vc_redist.x64.exe'; Invoke-WebRequest -UseBasicParsing -Uri 'https://aka.ms/vs/17/release/vc_redist.x64.exe' -OutFile $f; Start-Process -FilePath $f -ArgumentList '/install','/quiet','/norestart' -Wait"
+"%PHP%" -v >nul 2>&1
+if not errorlevel 1 goto phpok
+echo PHP non parte: installa a mano https://aka.ms/vs/17/release/vc_redist.x64.exe e rilancia questo file.
+pause
+exit /b 1
+
+:phpok
 :: Fork EffegiCED: l'indirizzo di Kassa, l'unico sito da cui l'agente accetta stampe (config\agent.json)
 if exist "%BASEDIR%config\agent.json" goto services
 echo.
@@ -43,6 +57,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "$u = $null; if (-not [ur
 echo Installing EPS as Windows services...
 "%NSSM%" install EPS-WS "%PHP%" "%EPS%" --role ws
 "%NSSM%" install EPS-HTTP "%PHP%" "%EPS%" --role http
+:: Fork EffegiCED: gli errori dei servizi nella cartella logs (senza, un servizio che si ferma non dice perche')
+if not exist "%BASEDIR%logs" mkdir "%BASEDIR%logs"
+"%NSSM%" set EPS-WS AppStdout "%BASEDIR%logs\service-ws.log"
+"%NSSM%" set EPS-WS AppStderr "%BASEDIR%logs\service-ws.log"
+"%NSSM%" set EPS-HTTP AppStdout "%BASEDIR%logs\service-http.log"
+"%NSSM%" set EPS-HTTP AppStderr "%BASEDIR%logs\service-http.log"
 
 "%NSSM%" start EPS-WS
 "%NSSM%" start EPS-HTTP

@@ -23,7 +23,7 @@
 >
 > **Installazione su Windows**
 > 1. Scarica `eps-windows-bundle-….zip` dalle [release di questo fork](https://github.com/EffegiCED/escpos-printer-server/releases) ed estrailo in una cartella stabile (per esempio `C:\KassaStampa`).
-> 2. Doppio clic su `eps-install.bat`: chiede l'**indirizzo di Kassa** (per esempio `https://kassa.exxstore.it`) e installa due servizi di Windows (`EPS-WS`, `EPS-HTTP`) che partono da soli all'accensione.
+> 2. Doppio clic su `eps-install.bat`: controlla che PHP parta (se manca il **Visual C++ Redistributable** di Microsoft, `VCRUNTIME140.dll`, lo scarica e lo installa), chiede l'**indirizzo di Kassa** (per esempio `https://kassa.exxstore.it`) e installa due servizi di Windows (`EPS-WS`, `EPS-HTTP`) che partono da soli all'accensione. Gli errori dei servizi sono in `logs\service-ws.log` e `logs\service-http.log`.
 > 3. In Kassa, *Stampa → Dispositivi*: collegamento **Agente locale**, indirizzo della stampante `IP:porta` (per esempio `192.168.1.87:9100`) oppure il nome della stampante condivisa in Windows.
 > 4. Nella postazione di stampa di Kassa, sullo stesso computer, la stampante risulta «Collegata».
 >

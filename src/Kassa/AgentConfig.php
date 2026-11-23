@@ -11,7 +11,7 @@ namespace Darkterminal\EscposPrinterServer\Kassa;
  */
 final class AgentConfig
 {
-    public const VERSION = '2.0.4-kassa.1';
+    public const VERSION = '2.0.4-kassa.2';
 
     /** Il protocollo che Kassa si aspetta: cambia solo con un cambio incompatibile dei messaggi. */
     public const PROTOCOL = 'kassa-raw/1';
